@@ -1,6 +1,7 @@
 """
 Student Advisor Chatbot
-A console-based chatbot using Azure OpenAI for educational guidance.
+A console-based chatbot using Azure AI Foundry Agent Framework.
+Creates a persistent agent visible in the Foundry UI.
 """
 
 import os
@@ -8,8 +9,8 @@ import sys
 import asyncio
 import logging
 from dotenv import load_dotenv
-from openai import AsyncAzureOpenAI
-from azure.identity import AzureCliCredential, get_bearer_token_provider
+from azure.identity.aio import AzureCliCredential
+from agent_framework.azure import AzureAIProjectAgentProvider
 
 # Setup logging
 logging.basicConfig(
@@ -61,21 +62,14 @@ If asked about prohibited topics, politely redirect: "I'm not able to discuss th
 """
     
     async def create_or_get_client(self):
-        """Create Azure OpenAI client for the student advisor."""
-        logger.info("Connecting to Azure OpenAI...")
+        """Create Azure AI Project agent provider."""
+        logger.info("Connecting to Azure AI Foundry...")
         
-        # Use AzureCliCredential for authentication
+        # Create credential and provider using agent framework (new agents API)
         credential = AzureCliCredential()
-        token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
-        
-        client = AsyncAzureOpenAI(
-            api_version="2024-10-21",
-            azure_endpoint=self.endpoint.rstrip('/'),
-            azure_ad_token_provider=token_provider
-        )
-        
-        logger.info("✓ Azure OpenAI Client configured")
-        return client
+        provider = AzureAIProjectAgentProvider(credential=credential)
+        logger.info("✓ Azure AI Project Agent Provider configured")
+        return provider, credential
     
     async def run_interactive_session(self):
         """Run the interactive chat session with the student advisor."""
@@ -85,7 +79,7 @@ If asked about prohibited topics, politely redirect: "I'm not able to discuss th
         print("\n" + "="*60)
         print("Student Advisor Chatbot")
         print("="*60)
-        print("\nHello! I'm your Student Advisor powered by Azure AI.")
+        print("\nHello! I'm your Student Advisor powered by Azure AI Foundry.")
         print("I can help you with:")
         print("- Academic planning and course selection")
         print("- Career development")
@@ -93,14 +87,23 @@ If asked about prohibited topics, politely redirect: "I'm not able to discuss th
         print("- Student resources and support")
         print("- Any other student-related questions")
         print("\nType 'exit' or 'quit' to end the conversation.")
+        print("Note: This agent uses the NEW agents API with versioning")
         print("-"*60 + "\n")
         
-        client = await self.create_or_get_client()
-        
-        try:
-            conversation_history = [
-                {"role": "system", "content": self._get_advisor_instructions()}
-            ]
+        # Use new agents pattern with AzureAIProjectAgentProvider
+        async with (
+            AzureCliCredential() as credential,
+            AzureAIProjectAgentProvider(credential=credential) as provider,
+        ):
+            # Create the versioned agent in Foundry using new agents API
+            logger.info("Creating StudentAdvisor agent using NEW agents API...")
+            agent = await provider.create_agent(
+                name="StudentAdvisor",
+                instructions=self._get_advisor_instructions()
+            )
+            logger.info(f"✓ New agent created with ID: {agent.id}")
+            logger.info("  This uses the modern versioned agents API")
+            logger.info("  View in Azure AI Foundry UI: https://ai.azure.com")
             
             while True:
                 try:
@@ -114,45 +117,33 @@ If asked about prohibited topics, politely redirect: "I'm not able to discuss th
                         print("Advisor: Goodbye! Take care!")
                         break
                     
-                    conversation_history.append({"role": "user", "content": user_input})
+                    logger.info("Getting response from Foundry agent...")
+                    # Run agent with the user message  
+                    result = await agent.run(user_input)
                     
-                    logger.info("Getting response from Azure OpenAI...")
-                    response = await client.chat.completions.create(
-                        model=self.deployment,
-                        messages=conversation_history,
-                        max_tokens=1000,
-                        temperature=0.7
-                    )
-                    
-                    assistant_message = response.choices[0].message.content
-                    conversation_history.append({"role": "assistant", "content": assistant_message})
-                    
-                    print(f"Advisor: {assistant_message}\n")
+                    print(f"Advisor: {result}\n")
                     
                 except KeyboardInterrupt:
                     logger.info("User interrupted conversation")
                     print("\n\nAdvisor: Goodbye! Take care!")
                     break
                 except Exception as e:
-                    logger.error(f"Error during response: {e}")
+                    logger.error(f"Error during response: {type(e).__name__}: {str(e)}")
                     print(f"Error: {str(e)}")
                     print("Please try again.\n")
-        finally:
-            logger.info("Closing connection...")
 
 
 async def main():
     """Main entry point for the chatbot."""
     logger.info("="*60)
-    logger.info("Starting Student Advisor Chatbot")
+    logger.info("Starting Student Advisor Chatbot (New Agents API)")
     logger.info("="*60)
     
     try:
         chatbot = StudentAdvisorChatbot()
         await chatbot.run_interactive_session()
     except Exception as e:
-        logger.error(f"Fatal error: {type(e).__name__}")
-        logger.error(str(e))
+        logger.error(f"Fatal error: {type(e).__name__}: {str(e)}")
         sys.exit(1)
 
 

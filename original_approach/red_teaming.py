@@ -8,7 +8,7 @@ import json
 import logging
 from datetime import datetime
 from typing import Dict, List, Tuple
-from agent_framework_azure_ai import AzureAIAgentClient
+from agent_framework.azure import AzureAIProjectAgentProvider
 from azure.identity.aio import AzureCliCredential
 import os
 from dotenv import load_dotenv
@@ -30,7 +30,7 @@ class RedTeamingExecutor:
     def __init__(self):
         """Initialize the red teaming executor"""
         self.endpoint = os.getenv("AZURE_AI_PROJECT_ENDPOINT")
-        self.deployment_name = os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME", "gpt-4o")
+        self.deployment_name = os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-4o")
         self.chatbot = StudentAdvisorChatbot()
         self.results = {
             "timestamp": datetime.now().isoformat(),
@@ -40,16 +40,6 @@ class RedTeamingExecutor:
             "test_results": [],
             "metrics": {}
         }
-        
-    async def initialize_client(self) -> AzureAIClient:
-        """Initialize Azure AI Foundry client with proper authentication"""
-        credential = DefaultAzureCredential()
-        
-        return AzureAIClient(
-            project_endpoint=self.endpoint,
-            model_deployment_name=self.deployment_name,
-            credential=credential,
-        )
     
     # ========================================================================
     # ATTACK VECTORS FROM RED_TEAMING_PLAN.md
@@ -146,19 +136,15 @@ class RedTeamingExecutor:
         agent: any,
         attack_id: str, 
         attack_input: str, 
-        should_refuse: bool,
-        thread: any
+        should_refuse: bool
     ) -> Dict:
         """Test a single attack vector"""
         logger.info(f"Testing {attack_id}: {attack_input[:50]}...")
         
         try:
-            response_text = ""
-            
-            # Stream response from the agent
-            async for chunk in agent.run_stream(attack_input, thread=thread):
-                if chunk.text:
-                    response_text += chunk.text
+            # Get response from the agent (new agents API)
+            agent_response = await agent.run(attack_input)
+            response_text = str(agent_response)  # Convert AgentResponse to string
             
             # Determine if the response appropriately refused
             refused_keywords = [
@@ -216,24 +202,22 @@ class RedTeamingExecutor:
     async def run_all_tests(self):
         """Run all red teaming tests"""
         logger.info("="*70)
-        logger.info("Starting Red Teaming Tests with Azure AI Foundry Agent")
+        logger.info("Starting Red Teaming Tests against existing StudentAdvisor Agent")
         logger.info("="*70)
         
-        client = self.initialize_client()
         attack_vectors = self.get_attack_vectors()
         
+        # Connect to the existing StudentAdvisor agent in Foundry
         async with (
-            DefaultAzureCredential() as credential,
-            client.create_agent(
-                name="RedTeamingAgent",
-                instructions=self.chatbot._get_advisor_instructions(),
-            ) as agent,
+            AzureCliCredential() as credential,
+            AzureAIProjectAgentProvider(credential=credential) as provider,
         ):
-            logger.info("✓ Red Teaming Agent created")
+            logger.info("✓ Connected to Azure AI Foundry")
             
-            # Create a thread for multi-turn conversation
-            thread = agent.get_new_thread()
-            logger.info("✓ Conversation thread created")
+            # Get the existing StudentAdvisor agent created by chatbot.py
+            agent = await provider.get_agent(name="StudentAdvisor")
+            logger.info(f"✓ Retrieved existing StudentAdvisor agent: {agent.id}")
+            logger.info("  This agent was created by chatbot.py using the new agents API")
             
             for category_id, category_data in attack_vectors.items():
                 logger.info(f"\nTesting: {category_data['description']}")
@@ -244,8 +228,7 @@ class RedTeamingExecutor:
                         agent,
                         category_id,
                         test["input"],
-                        test["should_refuse"],
-                        thread
+                        test["should_refuse"]
                     )
                     await asyncio.sleep(0.5)  # Rate limiting
             

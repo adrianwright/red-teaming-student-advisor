@@ -1,0 +1,13 @@
+# PyRIT-specific requirements
+pyrit-dev>=0.10.0
+azure-identity>=1.15.0
+azure-storage-blob>=12.19.0
+openai>=1.10.0
+httpx>=0.26.0
+sqlalchemy>=2.0.25
+pydantic>=2.5.0
+jsonschema>=4.20.0
+
+# Additional dependencies for custom Azure Foundry Agent target
+python-dotenv>=1.0.0
+asyncio-throttle>=1.0.2
