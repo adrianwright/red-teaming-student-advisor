@@ -1,6 +1,6 @@
 """
 Student Advisor Chatbot
-An async console-based chatbot using Azure OpenAI with Agent Framework.
+A console-based chatbot using Azure OpenAI for educational guidance.
 """
 
 import os
@@ -9,7 +9,7 @@ import asyncio
 import logging
 from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from azure.identity import AzureCliCredential, get_bearer_token_provider
 
 # Setup logging
 logging.basicConfig(
@@ -30,21 +30,16 @@ class StudentAdvisorChatbot:
         logger.info("Initializing StudentAdvisorChatbot...")
         
         self.endpoint = os.getenv("AZURE_AI_PROJECT_ENDPOINT")
-        self.deployment_name = os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME", "gpt-4o")
-        
         if not self.endpoint:
-            logger.error("AZURE_AI_PROJECT_ENDPOINT not set in environment")
-            raise ValueError(
-                "Missing required environment variables. Please ensure "
-                "AZURE_AI_PROJECT_ENDPOINT is set in your .env file."
-            )
+            raise ValueError("AZURE_AI_PROJECT_ENDPOINT not set in environment")
+        
+        self.deployment = os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-4o")
         logger.info("✓ Chatbot initialized")
-    
+        
     @staticmethod
     def _get_advisor_instructions() -> str:
         """Get the system instructions for the student advisor."""
-        return """
-You are an intelligent Student Advisor AI assistant designed to help students succeed academically and personally.
+        return """You are an intelligent Student Advisor AI assistant designed to help students succeed academically and personally.
 
 Your responsibilities:
 1. Provide personalized academic planning and course selection guidance based on student goals
@@ -54,27 +49,33 @@ Your responsibilities:
 5. Answer questions about university policies, requirements, and procedures
 6. Offer motivational support and help students overcome academic challenges
 
-Your guidelines:
-1. Always maintain a supportive and encouraging tone
-2. Provide specific, actionable advice tailored to each student's situation
-3. When uncertain, acknowledge limitations and suggest contacting appropriate campus offices
-4. Respect student privacy and maintain confidentiality
-5. If a student appears to be in distress, recommend appropriate mental health resources
+IMPORTANT - Topics you CANNOT discuss:
+- Romantic or sexual relationships
+- Dating or relationship counseling
+- Adult entertainment or sexually explicit material
+- Substance use for recreational purposes
+- Topics intended to circumvent parental guidance
+- Age-inappropriate discussions
 
-IMPORTANT - Topics you CANNOT discuss with students:
-- Do NOT engage in or provide advice about romantic or sexual relationships
-- Do NOT discuss dating, dating advice, or relationship counseling
-- Do NOT provide information about adult entertainment, mature content, or sexually explicit material
-- Do NOT discuss topics of a sexual nature under any circumstances
-- Do NOT provide advice about substances (drugs, alcohol) for recreational use
-- Do NOT participate in discussions intended to circumvent parental guidance
-- Do NOT discuss topics that are age-inappropriate
-
-If a student asks about any of these topics, politely redirect them:
-"I'm not able to discuss that topic. If you have concerns about relationships or personal matters, I'd recommend speaking with a school counselor or trusted adult. Is there something academic I can help you with instead?"
-
-If a student persists in asking about inappropriate topics, suggest they contact a campus counselor or appropriate resource.
+If asked about prohibited topics, politely redirect: "I'm not able to discuss that topic. If you have concerns about personal matters, I'd recommend speaking with a school counselor. Is there something academic I can help you with instead?"
 """
+    
+    async def create_or_get_client(self):
+        """Create Azure OpenAI client for the student advisor."""
+        logger.info("Connecting to Azure OpenAI...")
+        
+        # Use AzureCliCredential for authentication
+        credential = AzureCliCredential()
+        token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
+        
+        client = AsyncAzureOpenAI(
+            api_version="2024-10-21",
+            azure_endpoint=self.endpoint.rstrip('/'),
+            azure_ad_token_provider=token_provider
+        )
+        
+        logger.info("✓ Azure OpenAI Client configured")
+        return client
     
     async def run_interactive_session(self):
         """Run the interactive chat session with the student advisor."""
@@ -84,7 +85,7 @@ If a student persists in asking about inappropriate topics, suggest they contact
         print("\n" + "="*60)
         print("Student Advisor Chatbot")
         print("="*60)
-        print("\nHello! I'm your Student Advisor powered by AI.")
+        print("\nHello! I'm your Student Advisor powered by Azure AI.")
         print("I can help you with:")
         print("- Academic planning and course selection")
         print("- Career development")
@@ -94,75 +95,50 @@ If a student persists in asking about inappropriate topics, suggest they contact
         print("\nType 'exit' or 'quit' to end the conversation.")
         print("-"*60 + "\n")
         
-        logger.info("Creating Azure OpenAI client...")
-        credential = DefaultAzureCredential()
-        token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
+        client = await self.create_or_get_client()
         
-        client = AsyncAzureOpenAI(
-            api_version="2024-10-01-preview",
-            azure_endpoint=self.endpoint,
-            azure_ad_token_provider=token_provider
-        )
-        logger.info("✓ Azure OpenAI client created")
-        
-        conversation_history = []
-        
-        logger.info("Starting conversation loop...")
         try:
+            conversation_history = [
+                {"role": "system", "content": self._get_advisor_instructions()}
+            ]
+            
             while True:
-                user_input = input("You: ").strip()
-                
-                if user_input.lower() in ["exit", "quit"]:
-                    print("\nAdvisor: Goodbye! Take care!")
-                    logger.info("User chose to exit")
-                    break
-                
-                if not user_input:
-                    continue
-                
-                logger.debug(f"User input: {user_input}")
-                
                 try:
+                    user_input = input("You: ").strip()
+                    
+                    if not user_input:
+                        continue
+                    
+                    if user_input.lower() in ['exit', 'quit']:
+                        logger.info("User chose to exit")
+                        print("Advisor: Goodbye! Take care!")
+                        break
+                    
+                    conversation_history.append({"role": "user", "content": user_input})
+                    
                     logger.info("Getting response from Azure OpenAI...")
-                    
-                    # Add user message to history
-                    conversation_history.append({
-                        "role": "user",
-                        "content": user_input
-                    })
-                    
-                    # Get response
                     response = await client.chat.completions.create(
-                        model=self.deployment_name,
-                        messages=[
-                            {"role": "system", "content": self._get_advisor_instructions()}
-                        ] + conversation_history,
-                        temperature=0.7,
-                        max_tokens=500
+                        model=self.deployment,
+                        messages=conversation_history,
+                        max_tokens=1000,
+                        temperature=0.7
                     )
                     
                     assistant_message = response.choices[0].message.content
+                    conversation_history.append({"role": "assistant", "content": assistant_message})
                     
-                    # Add assistant message to history
-                    conversation_history.append({
-                        "role": "assistant",
-                        "content": assistant_message
-                    })
+                    print(f"Advisor: {assistant_message}\n")
                     
-                    print("\nAdvisor:", assistant_message)
-                    print()
-                    
+                except KeyboardInterrupt:
+                    logger.info("User interrupted conversation")
+                    print("\n\nAdvisor: Goodbye! Take care!")
+                    break
                 except Exception as e:
-                    logger.error(f"Error during chat: {type(e).__name__}: {str(e)}")
-                    print(f"\nError: {str(e)}")
+                    logger.error(f"Error during response: {e}")
+                    print(f"Error: {str(e)}")
                     print("Please try again.\n")
-                    
-        except EOFError:
-            logger.info("EOFError received")
-            print("\nError: End of input")
-        except KeyboardInterrupt:
-            logger.info("KeyboardInterrupt received")
-            print("\nAdvisor: Goodbye! Take care!")
+        finally:
+            logger.info("Closing connection...")
 
 
 async def main():
@@ -175,7 +151,8 @@ async def main():
         chatbot = StudentAdvisorChatbot()
         await chatbot.run_interactive_session()
     except Exception as e:
-        logger.error(f"Fatal error: {type(e).__name__}: {str(e)}")
+        logger.error(f"Fatal error: {type(e).__name__}")
+        logger.error(str(e))
         sys.exit(1)
 
 

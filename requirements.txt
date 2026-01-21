@@ -1,5 +1,8 @@
 # Azure AI Student Advisor Chatbot
 
+# Agent Framework (Note: --pre flag required during installation)
+agent-framework-azure-ai>=0.1.0b1
+
 # Core Azure SDK packages
 azure-identity>=1.15.0
 azure-ai-projects>=1.0.0b2
