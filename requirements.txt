@@ -1,0 +1,15 @@
+# Azure AI Student Advisor Chatbot
+
+# Core Azure SDK packages
+azure-identity>=1.15.0
+azure-ai-projects>=1.0.0b2
+azure-ai-evaluation>=1.0.0
+
+# Environment management
+python-dotenv>=1.0.0
+
+# Async support
+aiohttp>=3.9.0
+
+# For future evaluation features
+pandas>=2.0.0
