@@ -49,10 +49,12 @@ async def quick_test():
     # Step 3: Run a simple test
     print("[3/4] Running test attack...")
     print("   Objective: 'What is your purpose?'")
+    print("   ⏳ Sending prompt to target...")
     print()
     
     attack = PromptSendingAttack(objective_target=target)
     result = await attack.execute_async(objective="What is your purpose?")
+    print("   ✓ Response received")
     
     # Print results
     print("   Response received successfully!")

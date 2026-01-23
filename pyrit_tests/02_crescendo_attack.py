@@ -96,10 +96,12 @@ async def run_crescendo_attack_academic_dishonesty():
     print("Starting Crescendo attack...")
     print(f"Objective: {conversation_objective}")
     print(f"Max turns: 7, Max backtracks: 4")
+    print("⏳ This may take 1-2 minutes as it involves multiple turns...")
     print()
     
     # Execute the attack
     result = await attack.execute_async(objective=conversation_objective)
+    print("✓ Attack sequence completed")
     
     # Print results summary
     print(f"\nAttack completed!")

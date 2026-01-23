@@ -21,7 +21,39 @@ This project demonstrates:
 
 ## Quick Start
 
-### 1. Clone and Setup
+**Choose your setup method:**
+
+### Option A: Automated Setup (Recommended)
+
+```powershell
+# Clone the repo
+git clone <repo-url>
+cd red-teaming
+
+# Run automated setup script (creates venv, installs dependencies, configures .env)
+.\setup.ps1
+
+# Activate virtual environment
+.\.venv\Scripts\Activate.ps1
+```
+
+The setup script automatically:
+- Creates Python virtual environment
+- Installs all dependencies
+- Configures `.env` files from your Azure deployment
+
+### Option B: Dev Container (VS Code)
+
+Open in VS Code and click "Reopen in Container" when prompted, or:
+
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop)
+2. Install VS Code [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+3. Open repo in VS Code
+4. Press `F1` → "Dev Containers: Reopen in Container"
+
+Everything is pre-configured: Python 3.13, Azure CLI, azd, and all dependencies.
+
+### Option C: Manual Setup
 
 ```powershell
 # Clone the repo
@@ -44,26 +76,41 @@ pip install -r requirements.txt --pre
 # Login to Azure
 az login
 
-# Deploy with Azure Developer CLI
+# Create new environment and deploy
+azd env new <environment-name> --location eastus2
 azd provision
 ```
 
-This deploys (~10 min):
+This deploys (~3-5 minutes):
 - Azure AI Foundry Hub & Project
-- Azure OpenAI with GPT-4.1
+- Azure OpenAI with GPT-4.1 and GPT-4o
 - Storage, Key Vault, App Insights
 
-### 3. Configure Environment
+**Note:** If you used `setup.ps1`, your `.env` files are already configured. Skip to step 4.
 
-Copy `.env.template` to `.env` and fill in your values:
+### 3. Configure Environment (Manual Setup Only)
 
+If you used `setup.ps1` or dev container, **skip this step** - your configuration is already complete.
+
+For manual setup, create `.env` and `pyrit_tests/.env` files with your Azure values:
+
+**Root `.env`:**
 ```env
-AZURE_SUBSCRIPTION_ID=<your-subscription-id>
-AZURE_RESOURCE_GROUP_NAME=<your-resource-group>
-AZURE_AI_PROJECT_ENDPOINT=https://<hub-name>.services.ai.azure.com/api/projects/<project>
+AZURE_SUBSCRIPTION_ID=<subscription-id>
+AZURE_RESOURCE_GROUP_NAME=<resource-group>
+AZURE_AI_PROJECT_ENDPOINT=https://<hub>.services.ai.azure.com/api/projects/<project>
 AZURE_AI_MODEL_DEPLOYMENT_NAME=gpt-4.1
 AZURE_AI_AGENT_NAME=StudentAdvisor
 AZURE_LOCATION=eastus2
+```
+
+**`pyrit_tests/.env`:**
+```env
+OPENAI_CHAT_ENDPOINT=https://<service>.cognitiveservices.azure.com/openai/v1
+OPENAI_CHAT_MODEL=gpt-4.1
+OPENAI_VISION_MODEL=gpt-4o
+AZURE_LOCATION=eastus2
+AZURE_AI_AGENT_NAME=StudentAdvisor
 ```
 
 ### 4. Test the Chatbot
@@ -91,11 +138,13 @@ python run_all_demos.py
 **PyRIT Demos:**
 | Demo | Description |
 |------|-------------|
-| 01_basic_prompt_sending | Prompt converters (Base64, ROT13, etc.) |
-| 02_crescendo_attack | Multi-turn adaptive attacks |
-| 03_scoring_evaluation | LLM-based response scoring |
-| 04_multimodal_attacks | QR codes, audio, images |
-| 05_memory_analysis | Attack history and analysis |
+| quickstart.py | 60-second verification test |
+| 01_basic_prompt_sending.py | Prompt converters (Base64, ROT13, etc.) |
+| 02_crescendo_attack.py | Multi-turn adaptive attacks |
+| 03_scoring_evaluation.py | LLM-based response scoring |
+| 04_qr_code_attacks.py | QR code-based prompt injection |
+| 05_memory_analysis.py | Attack history and analysis |
+| run_all_demos.py | Interactive menu to run all demos |
 
 #### Option B: AI Red Teaming Agent (Cloud Testing)
 
@@ -113,27 +162,30 @@ This runs Azure's cloud-based red teaming with:
 
 ```
 red-teaming/
-├── .venv/                      # Python virtual environment
+├── .devcontainer/              # VS Code dev container config
+├── .venv/                      # Python virtual environment (gitignored)
 ├── chatbot.py                  # Student advisor chatbot
+├── setup.ps1                   # Automated setup script
 ├── requirements.txt            # All Python dependencies
-├── .env.template               # Environment template
+├── .env                        # Environment config (gitignored)
 │
 ├── pyrit_tests/                # PyRIT red teaming demos
+│   ├── quickstart.py           # 60-second verification
 │   ├── 01_basic_prompt_sending.py
 │   ├── 02_crescendo_attack.py
 │   ├── 03_scoring_evaluation.py
-│   ├── 04_multimodal_attacks.py
+│   ├── 04_qr_code_attacks.py
 │   ├── 05_memory_analysis.py
-│   ├── quickstart.py           # 60-second verification
-│   ├── run_all_demos.py        # Run all demos
-│   └── .env                    # PyRIT-specific config (gitignored)
+│   ├── run_all_demos.py        # Interactive menu
+│   ├── .env                    # PyRIT-specific config (gitignored)
+│   └── README.md               # Detailed PyRIT documentation
 │
 ├── ai_red_teaming_agent_tests/ # Azure Red Teaming Agent
 │   ├── create_red_team_run.py  # Cloud-based red teaming
 │   └── test_cases.jsonl        # SME test cases
 │
 ├── infra/                      # Bicep infrastructure
-│   └── main.bicep
+│   └── main.bicep              # Azure resource definitions
 │
 └── azure.yaml                  # AZD configuration
 ```
@@ -160,10 +212,13 @@ azd down
 
 | Issue | Solution |
 |-------|----------|
-| `ModuleNotFoundError` | Activate venv: `.\.venv\Scripts\Activate.ps1` |
-| `azure-ai-projects` import error | Run `pip install "azure-ai-projects>=2.0.0b1"` |
-| Authentication failed | Run `az login` |
-| Red teaming region error | Use: East US2, Sweden Central, France Central, or Switzerland West |
+| `ModuleNotFoundError` | Ensure venv is activated: `.\.venv\Scripts\Activate.ps1` |
+| `azure-ai-projects` import error | Run `pip install -r requirements.txt --pre` |
+| Authentication failed | Run `az login` and ensure you're in the correct subscription |
+| `azd` command not found | Install Azure Developer CLI: `winget install microsoft.azd` |
+| Region not supported | Use: East US 2, Sweden Central, France Central, or Switzerland West |
+| setup.ps1 fails | Ensure you've run `azd provision` first to deploy infrastructure |
+| PyRIT tests can't find .env | Run `setup.ps1` or manually create `pyrit_tests/.env` |
 
 ## References
 

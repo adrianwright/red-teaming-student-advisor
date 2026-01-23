@@ -42,12 +42,7 @@ if ((Test-Path $venvPath) -and -not $Force) {
 
 # Activate and install dependencies
 Write-Host "[3/4] Installing dependencies..." -ForegroundColor Yellow
-& "$venvPath\Scripts\pip.exe" install --upgrade pip | Out-Null
 & "$venvPath\Scripts\pip.exe" install -r requirements.txt --pre
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Failed to install dependencies" -ForegroundColor Red
-    exit 1
-}
 Write-Host "      Dependencies installed" -ForegroundColor Green
 
 # Check for .env file and populate from azd
@@ -65,7 +60,7 @@ if ($azdCheck -match 'AZURE_SUBSCRIPTION_ID') {
     
     if ($subscriptionId -and $resourceGroup) {
         # Get AI Services account name - filter warnings and get first line
-        $azOutput = az resource list -g $resourceGroup --query "[?type=='Microsoft.CognitiveServices/accounts'].name" -o tsv 2>&1
+        $azOutput = az resource list -g $resourceGroup --query "[?type=='Microsoft.CognitiveServices/accounts' && kind=='AIServices'].name" -o tsv 2>&1
         $aiAccount = ($azOutput | Where-Object { $_ -notmatch '^WARNING:' -and $_ -notmatch '^ERROR' -and $_.Trim() -ne '' } | Select-Object -First 1)
         
         if ($aiAccount -and $aiAccount.Trim() -ne '') {
@@ -102,12 +97,16 @@ OPENAI_CHAT_ENDPOINT=https://$aiAccount.cognitiveservices.azure.com/openai/v1
 # Model deployment name
 OPENAI_CHAT_MODEL=gpt-4.1
 
+# GPT-4o deployment (for vision-aware multimodal tests)
+OPENAI_VISION_MODEL=gpt-4o
+
 # Azure region where your resources are deployed
 AZURE_LOCATION=$location
 
 # AI Foundry agent name
 AZURE_AI_AGENT_NAME=StudentAdvisor
 "@
+            
             $pyritEnvContent | Out-File -FilePath "pyrit_tests\.env" -Encoding UTF8 -Force
             Write-Host "      Created pyrit_tests\.env for PyRIT demos" -ForegroundColor Green
         } else {

@@ -58,14 +58,15 @@ async def demonstrate_memory_persistence():
     
     conversation_ids = []
     for i, objective in enumerate(objectives, 1):
-        print(f"Attack {i}: {objective}")
+        print(f"Attack {i}/{len(objectives)}: {objective}")
+        print("⏳ Executing...")
         
         attack = PromptSendingAttack(objective_target=target)
         result = await attack.execute_async(objective=objective)
         
         conv_id = str(result.conversation_id) if hasattr(result, 'conversation_id') else "N/A"
         conversation_ids.append(conv_id)
-        print(f"   Conversation ID: {conv_id}")
+        print(f"✓ Conversation ID: {conv_id}")
         print(f"   Stored in database")
         print()
     

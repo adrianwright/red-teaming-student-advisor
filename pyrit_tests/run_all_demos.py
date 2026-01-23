@@ -110,7 +110,7 @@ async def run_all_demos():
             demo4.run_qr_code_attack
         )
     except ImportError:
-        result = subprocess.run([sys.executable, "04_multimodal_attacks.py"])
+        result = subprocess.run([sys.executable, "04_qr_code_attacks.py"])
         results['Multi-Modal'] = result.returncode == 0
     
     # Demo 5: Memory
@@ -185,7 +185,7 @@ async def run_single_demo(demo_number):
         '2': ('01_basic_prompt_sending.py', 'Basic Prompt Sending'),
         '3': ('02_crescendo_attack.py', 'Crescendo Multi-Turn Attacks'),
         '4': ('03_scoring_evaluation.py', 'Scoring & Evaluation'),
-        '5': ('04_multimodal_attacks.py', 'Multi-Modal Attacks'),
+        '5': ('04_qr_code_attacks.py', 'QR Code Attacks'),
         '6': ('05_memory_analysis.py', 'Memory & Analysis'),
     }
     

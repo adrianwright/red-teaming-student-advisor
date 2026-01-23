@@ -107,6 +107,7 @@ async def run_basic_attacks():
         print(f"\n{'='*80}")
         print(f"Test {i}/{len(test_cases)}: {test_case['name']}")
         print(f"{'='*80}\n")
+        print("⏳ Executing attack...")
         
         # Configure converters if any
         if test_case["converters"]:
@@ -128,7 +129,7 @@ async def run_basic_attacks():
             result = await attack.execute_async(objective=test_case["objective"])
             
             # Print results
-            print(f"   Attack completed successfully")
+            print(f"✓ Attack completed successfully")
             
             results.append({
                 "test_name": test_case["name"],
@@ -180,13 +181,14 @@ async def run_privacy_attacks():
     ]
     
     for i, objective in enumerate(privacy_tests, 1):
-        print(f"\nTest {i}: {objective}")
+        print(f"\nTest {i}/{len(privacy_tests)}: {objective}")
         print("-" * 80)
+        print("⏳ Executing...")
         
         attack = PromptSendingAttack(objective_target=target)
         result = await attack.execute_async(objective=objective)
         
-        print(f"   Attack completed successfully")
+        print(f"✓ Completed")
 
 
 if __name__ == "__main__":

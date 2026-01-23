@@ -128,32 +128,25 @@ python 03_scoring_evaluation.py
 
 ---
 
-### Demo 4: Multi-Modal Attacks (`04_multimodal_attacks.py`)
+### Demo 4: QR Code Attacks (`04_qr_code_attacks.py`)
 
 **What it demonstrates:**
 - Text → QR Code attacks
-- Text → Audio attacks
-- Image-based prompt injection
-- Multi-modal converter stacking
+- Embedding prompts in QR codes to bypass text filters
+- Testing systems that scan and process QR codes
 
 **Key PyRIT features:**
 - `QRCodeConverter` - Embed prompts in QR codes
-- `AzureSpeechTextToAudioConverter` - Text to speech
-- `AddTextImageConverter` - Text overlays on images
-- `AudioFrequencyConverter` - Audio manipulation
-- Multi-modal converter catalog (65+ converters)
+- Image-based evasion techniques
 
 **Run it:**
 ```bash
-python 04_multimodal_attacks.py
+python 04_qr_code_attacks.py
 ```
 
 **Expected output:**
 - QR code images with embedded prompts
-- Audio files (if Azure Speech configured)
-- Multi-modal converter catalog
-
-**Note:** Audio attacks require Azure Speech Service configuration.
+- Successful attack attempts using QR encoding
 
 ---
 

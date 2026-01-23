@@ -25,6 +25,12 @@ param modelSkuName string = 'GlobalStandard'
 @description('The capacity of the model deployment in TPM')
 param modelCapacity int = 40
 
+@description('Deploy GPT-4o model')
+param deployGpt4o bool = true
+
+@description('GPT-4o model version')
+param gpt4oModelVersion string = '2024-08-06'
+
 @description('Deployment timestamp for unique suffix generation')
 param deploymentTimestamp string = utcNow('yyyyMMddHHmmss')
 
@@ -176,6 +182,26 @@ resource modelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-
   }
 }
 
+// GPT-4o Model Deployment
+resource gpt4oDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = if (deployGpt4o) {
+  parent: aiAccount
+  name: 'gpt-4o'
+  sku: {
+    capacity: 40
+    name: modelSkuName
+  }
+  properties: {
+    model: {
+      name: 'gpt-4o'
+      format: 'OpenAI'
+      version: gpt4oModelVersion
+    }
+  }
+  dependsOn: [
+    modelDeployment
+  ]
+}
+
 // Outputs
 output accountName string = aiAccount.name
 output projectName string = aiProject.name
@@ -186,3 +212,4 @@ output appInsightsName string = appInsights.name
 output appInsightsConnectionString string = appInsights.properties.ConnectionString
 output appInsightsInstrumentationKey string = appInsights.properties.InstrumentationKey
 output logAnalyticsWorkspaceId string = logAnalytics.id
+output gpt4oDeploymentName string = deployGpt4o ? 'gpt-4o' : ''

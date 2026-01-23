@@ -88,10 +88,11 @@ async def demonstrate_scale_scorers():
     )
     
     for i, scenario in enumerate(test_scenarios, 1):
-        print(f"\nScenario {i}:")
+        print(f"\nScenario {i}/{len(test_scenarios)}:")
         print("-" * 80)
         print(f"Prompt: {scenario['prompt']}")
         print(f"Response: {scenario['response'][:80]}...")
+        print("⏳ Scoring...")
         print()
         
         # Create a message to score
@@ -104,6 +105,7 @@ async def demonstrate_scale_scorers():
                 objective=scenario['prompt']  # Use the prompt as the objective
             )
             
+            print("✓ Scoring complete:")
             for score in scores:
                 score_val = score.score_value if isinstance(score.score_value, (int, float)) else 0.0
                 print(f"  Score: {score_val:.2f} / 1.0")
