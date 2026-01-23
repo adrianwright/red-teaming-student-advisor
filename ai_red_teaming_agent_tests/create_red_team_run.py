@@ -40,23 +40,26 @@ def load_sme_test_cases(test_cases_file: str = "test_cases.jsonl") -> list:
     """
     sme_cases = []
     
-    root_path = Path(__file__).parent.parent / test_cases_file
-    if not root_path.exists():
+    # Look in the same directory as this script
+    script_dir = Path(__file__).parent
+    test_path = script_dir / test_cases_file
+    if not test_path.exists():
+        print(f"[WARN] Test cases file not found: {test_path}")
         return []
     
     try:
-        with open(root_path, "r") as f:
+        with open(test_path, "r") as f:
             for line in f:
                 if line.strip():
                     case = json.loads(line)
                     sme_cases.append(case)
         
         if sme_cases:
-            print(f"✅ Loaded {len(sme_cases)} SME test cases from {test_cases_file}")
+            print(f"[OK] Loaded {len(sme_cases)} SME test cases from {test_cases_file}")
         
         return sme_cases
     except Exception as e:
-        print(f"⚠️  Error loading SME test cases: {e}")
+        print(f"[WARN] Error loading SME test cases: {e}")
         return []
 
 
@@ -131,13 +134,55 @@ def _get_tool_descriptions(agent_version):
     return tool_descriptions
 
 
+def upload_sme_test_cases(client, sme_cases: list) -> str | None:
+    """
+    Upload SME test cases as a JSONL file for the red team evaluation.
+    
+    Args:
+        client: OpenAI client from project_client.get_openai_client()
+        sme_cases: List of test cases with category and prompt
+        
+    Returns:
+        File ID if successful, None otherwise
+    """
+    if not sme_cases:
+        return None
+    
+    # Convert to JSONL format expected by Azure AI Evals
+    # Format: {"messages": [{"role": "user", "content": "..."}], "category": "..."}
+    jsonl_content = ""
+    for case in sme_cases:
+        entry = {
+            "messages": [{"role": "user", "content": case["prompt"]}],
+            "category": case.get("category", "sme_provided")
+        }
+        jsonl_content += json.dumps(entry) + "\n"
+    
+    # Write to temp file and upload
+    temp_path = Path("results/sme_test_cases_upload.jsonl")
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(temp_path, "w") as f:
+        f.write(jsonl_content)
+    
+    try:
+        with open(temp_path, "rb") as f:
+            uploaded_file = client.files.create(
+                file=f,
+                purpose="evals"
+            )
+        return uploaded_file.id
+    except Exception as e:
+        print(f"   Warning: Could not upload SME test cases: {e}")
+        return None
+
+
 def main():
     """Create and run a red team evaluation programmatically."""
     
     print("=" * 80)
-    print("🔴 AZURE AI FOUNDRY RED TEAM (Programmatic)")
+    print("RED TEAM: AZURE AI FOUNDRY (Programmatic)")
     print("=" * 80)
-    print(f"📅 Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+    print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
     
     # Configuration
     endpoint = os.getenv("AZURE_AI_PROJECT_ENDPOINT")
@@ -146,10 +191,14 @@ def main():
     data_folder = Path("results/red_team_cloud")
     data_folder.mkdir(parents=True, exist_ok=True)
     
-    print(f"📋 Configuration:")
+    # Load SME test cases
+    sme_cases = load_sme_test_cases()
+    
+    print(f"Configuration:")
     print(f"   Endpoint: {endpoint}")
     print(f"   Agent: {agent_name}")
     print(f"   Model: {model_deployment}")
+    print(f"   SME Test Cases: {len(sme_cases)} loaded")
     print(f"   Output: {data_folder}\n")
     
     with (
@@ -160,7 +209,7 @@ def main():
         client = project_client.get_openai_client()
         
         # Step 1: Get existing agent
-        print("🤖 Step 1: Getting existing agent...")
+        print("Step 1: Getting existing agent...")
         
         try:
             # Get the latest version of the existing agent
@@ -175,10 +224,10 @@ def main():
                 )
             else:
                 raise Exception(f"Agent {agent_name} not found")
-            print(f"   ✅ Using existing agent: id={agent_version.id}, name={agent_version.name}, version={agent_version.version}")
-            print(f"   📝 Agent instructions loaded from deployed version\n")
+            print(f"   [OK] Using existing agent: id={agent_version.id}, name={agent_version.name}, version={agent_version.version}")
+            print(f"   Agent instructions loaded from deployed version\n")
         except Exception as e:
-            print(f"   ⚠️  Could not get existing agent: {e}")
+            print(f"   [WARN] Could not get existing agent: {e}")
             print(f"   Creating new version...\n")
             
             # Fallback: use default instructions if existing agent not found
@@ -198,10 +247,20 @@ def main():
                     instructions=detailed_instructions
                 )
             )
-            print(f"   ✅ Created: id={agent_version.id}, name={agent_version.name}, version={agent_version.version}\n")
+            print(f"   [OK] Created: id={agent_version.id}, name={agent_version.name}, version={agent_version.version}\n")
         
-        # Step 2: Create Red Team
-        print("🎯 Step 2: Creating red team...")
+        # Step 2: Upload SME test cases (if any)
+        sme_file_id = None
+        if sme_cases:
+            print("Step 2: Uploading SME test cases...")
+            sme_file_id = upload_sme_test_cases(client, sme_cases)
+            if sme_file_id:
+                print(f"   [OK] Uploaded {len(sme_cases)} test cases, file_id={sme_file_id}\n")
+            else:
+                print(f"   [WARN] SME test cases not uploaded, continuing with generated tests only\n")
+        
+        # Step 3: Create Red Team
+        print("Step 3: Creating red team...")
         red_team_name = f"Red Team Safety Evaluation - {int(time.time())}"
         data_source_config = {"type": "azure_ai_source", "scenario": "red_team"}
         testing_criteria = _get_agent_safety_evaluation_criteria()
@@ -212,16 +271,16 @@ def main():
                 data_source_config=data_source_config,
                 testing_criteria=testing_criteria
             )
-            print(f"   ✅ Created: id={red_team.id}, name={red_team.name}\n")
+            print(f"   [OK] Created: id={red_team.id}, name={red_team.name}\n")
         except Exception as e:
-            print(f"   ❌ Error creating red team: {e}")
+            print(f"   [ERROR] Error creating red team: {e}")
             print(f"   Details: {type(e).__name__}\n")
             import traceback
             traceback.print_exc()
             return
         
-        # Step 3: Create evaluation taxonomy
-        print("📚 Step 3: Creating evaluation taxonomy...")
+        # Step 4: Create evaluation taxonomy
+        print("Step 4: Creating evaluation taxonomy...")
         try:
             if not agent_version:
                 print(f"   ❌ Error: No agent version available")
@@ -253,17 +312,17 @@ def main():
             taxonomy_path = data_folder / f"taxonomy_{agent_name}.json"
             with open(taxonomy_path, "w") as f:
                 f.write(json.dumps(_to_json_primitive(taxonomy), indent=2))
-            print(f"   ✅ Created taxonomy: {taxonomy_file_id}")
-            print(f"   📄 Saved to: {taxonomy_path}\n")
+            print(f"   [OK] Created taxonomy: {taxonomy_file_id}")
+            print(f"   Saved to: {taxonomy_path}\n")
             
         except Exception as e:
-            print(f"   ❌ Error creating taxonomy: {e}")
+            print(f"   [ERROR] Error creating taxonomy: {e}")
             import traceback
             traceback.print_exc()
             return
         
-        # Step 4: Create evaluation run
-        print("🚀 Step 4: Creating evaluation run...")
+        # Step 5: Create evaluation run
+        print("Step 5: Creating evaluation run...")
         eval_run_name = f"Red Team Run for {agent_name} - {int(time.time())}"
         
         # Customize attack strategies for your scenario:
@@ -283,35 +342,47 @@ def main():
         
         print(f"   Attack Strategies: {', '.join(attack_strategies)}")
         print(f"   Conversation Turns: {num_conversation_turns}")
+        print(f"   SME Test Cases: {len(sme_cases) if sme_cases else 0}")
         print(f"   Risk Categories: Prohibited Actions (academic dishonesty, policy violations, etc.)\n")
         
         try:
+            # Build data source configuration
+            data_source_config = {
+                "type": "azure_ai_red_team",
+                "item_generation_params": {
+                    "type": "red_team_taxonomy",
+                    "attack_strategies": attack_strategies,
+                    "num_turns": num_conversation_turns,
+                    "source": {
+                        "type": "file_id",
+                        "id": taxonomy_file_id
+                    }
+                },
+                "target": target.as_dict()
+            }
+            
+            # Add SME test cases if uploaded successfully
+            if sme_file_id:
+                data_source_config["sme_test_cases"] = {
+                    "type": "file_id",
+                    "id": sme_file_id
+                }
+                print(f"   Including {len(sme_cases)} SME test cases in evaluation\n")
+            
             eval_run = client.evals.runs.create(
                 eval_id=red_team.id,
                 name=eval_run_name,
-                data_source={
-                    "type": "azure_ai_red_team",
-                    "item_generation_params": {
-                        "type": "red_team_taxonomy",
-                        "attack_strategies": attack_strategies,
-                        "num_turns": num_conversation_turns,
-                        "source": {
-                            "type": "file_id",
-                            "id": taxonomy_file_id
-                        }
-                    },
-                    "target": target.as_dict()
-                }
+                data_source=data_source_config
             )
-            print(f"   ✅ Created: id={eval_run.id}, name={eval_run.name}, status={eval_run.status}\n")
+            print(f"   [OK] Created: id={eval_run.id}, name={eval_run.name}, status={eval_run.status}\n")
         except Exception as e:
-            print(f"   ❌ Error creating run: {e}")
+            print(f"   [ERROR] Error creating run: {e}")
             import traceback
             traceback.print_exc()
             return
         
-        # Step 5: Poll for completion
-        print("⏳ Step 5: Waiting for completion...")
+        # Step 6: Poll for completion
+        print("Step 6: Waiting for completion...")
         while True:
             run = client.evals.runs.retrieve(run_id=eval_run.id, eval_id=red_team.id)
             print(f"   Status: {run.status}")
@@ -323,9 +394,9 @@ def main():
         
         print()
         
-        # Step 6: Fetch results
+        # Step 7: Fetch results
         if run.status == "completed":
-            print("📊 Step 6: Fetching results...")
+            print("Step 7: Fetching results...")
             try:
                 items = list(client.evals.runs.output_items.list(run_id=run.id, eval_id=red_team.id))
                 
@@ -333,30 +404,36 @@ def main():
                 with open(output_path, "w") as f:
                     f.write(json.dumps(_to_json_primitive(items), indent=2))
                 
-                print(f"   ✅ Results saved to: {output_path}")
-                print(f"   📈 Total items: {len(items)}\n")
+                print(f"   [OK] Results saved to: {output_path}")
+                print(f"   Total items: {len(items)}\n")
+                
+                # Categorize results
+                sme_results = [i for i in items if i.get("category", "").startswith(("academic", "benign", "prompt_injection", "social", "emotional", "authority", "indirect"))]
+                generated_results = [i for i in items if i not in sme_results]
                 
                 # Summary
                 print("=" * 80)
-                print("✅ RED TEAM EVALUATION COMPLETE")
+                print("RED TEAM EVALUATION COMPLETE")
                 print("=" * 80)
-                print(f"\n📋 Summary:")
+                print(f"\nSummary:")
                 print(f"   Red Team ID: {red_team.id}")
                 print(f"   Run ID: {run.id}")
                 print(f"   Status: {run.status}")
-                print(f"   Output Items: {len(items)}")
-                print(f"\n💡 Next Steps:")
+                print(f"   Total Output Items: {len(items)}")
+                if sme_cases:
+                    print(f"   SME Test Cases: {len(sme_cases)} submitted")
+                print(f"\nNext Steps:")
                 print(f"   1. Review results in: {output_path}")
                 print(f"   2. Check Azure AI Foundry portal:")
-                print(f"      https://ai.azure.com → Evaluations → Red teaming")
+                print(f"      https://ai.azure.com -> Evaluations -> Red teaming")
                 print(f"   3. Analyze attack success rates and update agent instructions")
                 
             except Exception as e:
-                print(f"   ❌ Error fetching results: {e}")
+                print(f"   [ERROR] Error fetching results: {e}")
                 import traceback
                 traceback.print_exc()
         else:
-            print(f"❌ Run failed with status: {run.status}")
+            print(f"[ERROR] Run failed with status: {run.status}")
 
 
 if __name__ == "__main__":

@@ -1,31 +1,39 @@
 # Azure AI Student Advisor Chatbot & Red Teaming Framework
+# Python >=3.10,<3.14 required
+
+# =============================================================================
+# Core Azure SDK packages
+# =============================================================================
+azure-identity>=1.15.0
+azure-ai-projects>=2.0.0b1  # Required for red teaming agent
+azure-ai-evaluation>=1.0.0
 
 # Agent Framework (Note: --pre flag required during installation)
 agent-framework-azure-ai>=0.1.0b1
 
-# Core Azure SDK packages
-azure-identity>=1.15.0
-azure-ai-projects>=1.0.0b2
-azure-ai-evaluation>=1.0.0
+# =============================================================================
+# PyRIT - Red Teaming Framework
+# =============================================================================
+pyrit>=0.10.0
+azure-ai-inference>=1.0.0
 
+# =============================================================================
 # Application Insights and Tracing
+# =============================================================================
 azure-monitor-opentelemetry>=1.6.0
 opentelemetry-instrumentation-openai>=0.50.0
 
-# Environment management
+# =============================================================================
+# Supporting packages
+# =============================================================================
 python-dotenv>=1.0.0
-
-# Async support
 aiohttp>=3.9.0
-asyncio-throttle>=1.0.2
-
-# PyRIT - Red Teaming Framework
-pyrit>=0.10.0
 httpx>=0.26.0
-sqlalchemy>=2.0.25
-pydantic>=2.5.0
-jsonschema>=4.20.0
-
-# Evaluation features
-pandas>=2.0.0
 openai>=1.10.0
+pydantic>=2.5.0
+
+# Optional: Data analysis
+pandas>=2.0.0
+
+# Optional: For Azure Speech Service (multimodal attacks)
+# azure-cognitiveservices-speech>=1.35.0
