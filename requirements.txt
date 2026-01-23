@@ -1,4 +1,4 @@
-# Azure AI Student Advisor Chatbot
+# Azure AI Student Advisor Chatbot & Red Teaming Framework
 
 # Agent Framework (Note: --pre flag required during installation)
 agent-framework-azure-ai>=0.1.0b1
@@ -8,11 +8,24 @@ azure-identity>=1.15.0
 azure-ai-projects>=1.0.0b2
 azure-ai-evaluation>=1.0.0
 
+# Application Insights and Tracing
+azure-monitor-opentelemetry>=1.6.0
+opentelemetry-instrumentation-openai>=0.50.0
+
 # Environment management
 python-dotenv>=1.0.0
 
 # Async support
 aiohttp>=3.9.0
+asyncio-throttle>=1.0.2
 
-# For future evaluation features
+# PyRIT - Red Teaming Framework
+pyrit>=0.10.0
+httpx>=0.26.0
+sqlalchemy>=2.0.25
+pydantic>=2.5.0
+jsonschema>=4.20.0
+
+# Evaluation features
 pandas>=2.0.0
+openai>=1.10.0

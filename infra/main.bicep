@@ -2,7 +2,7 @@
 targetScope = 'resourceGroup'
 
 @description('Azure region for deployment')
-param location string = 'eastus'
+param location string = resourceGroup().location
 
 @description('Base name for all resources')
 param baseName string = 'studentadvisor'
@@ -11,13 +11,13 @@ param baseName string = 'studentadvisor'
 param environment string = 'dev'
 
 @description('The name of the OpenAI model to deploy')
-param modelName string = 'gpt-4o'
+param modelName string = 'gpt-4.1'
 
 @description('The model format')
 param modelFormat string = 'OpenAI'
 
 @description('The version of the model')
-param modelVersion string = '2024-11-20'
+param modelVersion string = '2025-04-14'
 
 @description('The SKU name for the model deployment')
 param modelSkuName string = 'GlobalStandard'
@@ -116,6 +116,35 @@ resource aiAccount 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' = {
   }
 }
 
+// Diagnostic Settings for AI Services (connects to Application Insights)
+resource aiDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'AppInsightsDiagnostics'
+  scope: aiAccount
+  properties: {
+    workspaceId: logAnalytics.id
+    logs: [
+      {
+        category: 'Audit'
+        enabled: true
+      }
+      {
+        category: 'RequestResponse'
+        enabled: true
+      }
+      {
+        category: 'Trace'
+        enabled: true
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
+  }
+}
+
 // Azure AI Project (child resource of AI Services)
 resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-04-01-preview' = {
   parent: aiAccount
@@ -153,3 +182,7 @@ output projectName string = aiProject.name
 output accountEndpoint string = aiAccount.properties.endpoint
 output resourceGroupName string = resourceGroup().name
 output location string = location
+output appInsightsName string = appInsights.name
+output appInsightsConnectionString string = appInsights.properties.ConnectionString
+output appInsightsInstrumentationKey string = appInsights.properties.InstrumentationKey
+output logAnalyticsWorkspaceId string = logAnalytics.id

@@ -2,6 +2,7 @@
 Student Advisor Chatbot
 A console-based chatbot using Azure AI Foundry Agent Framework.
 Creates a persistent agent visible in the Foundry UI.
+Application Insights connected via Azure infrastructure.
 """
 
 import os
@@ -98,7 +99,7 @@ If asked about prohibited topics, politely redirect: "I'm not able to discuss th
             # Create the versioned agent in Foundry using new agents API
             logger.info("Creating StudentAdvisor agent using NEW agents API...")
             agent = await provider.create_agent(
-                name="StudentAdvisor",
+                name="StudentAdvisor2",
                 instructions=self._get_advisor_instructions()
             )
             logger.info(f"✓ New agent created with ID: {agent.id}")
