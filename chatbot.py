@@ -15,7 +15,7 @@ from agent_framework.azure import AzureAIProjectAgentProvider
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.ERROR,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -29,14 +29,11 @@ class StudentAdvisorChatbot:
     
     def __init__(self):
         """Initialize the chatbot with Azure OpenAI configuration."""
-        logger.info("Initializing StudentAdvisorChatbot...")
-        
         self.endpoint = os.getenv("AZURE_AI_PROJECT_ENDPOINT")
         if not self.endpoint:
             raise ValueError("AZURE_AI_PROJECT_ENDPOINT not set in environment")
         
         self.deployment = os.getenv("AZURE_AI_MODEL_DEPLOYMENT_NAME", "gpt-4o")
-        logger.info("✓ Chatbot initialized")
         
     @staticmethod
     def _get_advisor_instructions() -> str:
@@ -64,18 +61,13 @@ If asked about prohibited topics, politely redirect: "I'm not able to discuss th
     
     async def create_or_get_client(self):
         """Create Azure AI Project agent provider."""
-        logger.info("Connecting to Azure AI Foundry...")
-        
         # Create credential and provider using agent framework (new agents API)
         credential = AzureCliCredential()
         provider = AzureAIProjectAgentProvider(credential=credential)
-        logger.info("✓ Azure AI Project Agent Provider configured")
         return provider, credential
     
     async def run_interactive_session(self):
         """Run the interactive chat session with the student advisor."""
-        logger.info("Starting interactive session...")
-        
         # Print welcome message
         print("\n" + "="*60)
         print("Student Advisor Chatbot")
@@ -97,14 +89,10 @@ If asked about prohibited topics, politely redirect: "I'm not able to discuss th
             AzureAIProjectAgentProvider(credential=credential) as provider,
         ):
             # Create the versioned agent in Foundry using new agents API
-            logger.info("Creating StudentAdvisor agent using NEW agents API...")
             agent = await provider.create_agent(
                 name="StudentAdvisor2",
                 instructions=self._get_advisor_instructions()
             )
-            logger.info(f"✓ New agent created with ID: {agent.id}")
-            logger.info("  This uses the modern versioned agents API")
-            logger.info("  View in Azure AI Foundry UI: https://ai.azure.com")
             
             while True:
                 try:
@@ -114,18 +102,15 @@ If asked about prohibited topics, politely redirect: "I'm not able to discuss th
                         continue
                     
                     if user_input.lower() in ['exit', 'quit']:
-                        logger.info("User chose to exit")
                         print("Advisor: Goodbye! Take care!")
                         break
                     
-                    logger.info("Getting response from Foundry agent...")
                     # Run agent with the user message  
                     result = await agent.run(user_input)
                     
                     print(f"Advisor: {result}\n")
                     
                 except KeyboardInterrupt:
-                    logger.info("User interrupted conversation")
                     print("\n\nAdvisor: Goodbye! Take care!")
                     break
                 except Exception as e:
@@ -136,10 +121,6 @@ If asked about prohibited topics, politely redirect: "I'm not able to discuss th
 
 async def main():
     """Main entry point for the chatbot."""
-    logger.info("="*60)
-    logger.info("Starting Student Advisor Chatbot (New Agents API)")
-    logger.info("="*60)
-    
     try:
         chatbot = StudentAdvisorChatbot()
         await chatbot.run_interactive_session()

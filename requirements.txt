@@ -15,7 +15,7 @@ agent-framework-azure-ai>=0.1.0b1
 # PyRIT - Red Teaming Framework
 # =============================================================================
 pyrit>=0.10.0
-azure-ai-inference>=1.0.0
+azure-ai-inference>=1.0.0b1
 
 # =============================================================================
 # Application Insights and Tracing

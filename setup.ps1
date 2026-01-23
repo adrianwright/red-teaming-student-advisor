@@ -50,17 +50,88 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "      Dependencies installed" -ForegroundColor Green
 
-# Check for .env file
-Write-Host "[4/4] Checking environment configuration..." -ForegroundColor Yellow
-if (-not (Test-Path ".env")) {
-    if (Test-Path ".env.template") {
-        Copy-Item ".env.template" ".env"
-        Write-Host "      Created .env from template - please fill in your values" -ForegroundColor Yellow
+# Check for .env file and populate from azd
+Write-Host "[4/4] Configuring environment from Azure deployment..." -ForegroundColor Yellow
+
+# Check if azd environment exists (filter out warnings)
+$azdOutput = azd env get-values 2>&1 | Where-Object { $_ -notmatch '^WARNING:' }
+$azdCheck = $azdOutput -join "`n"
+
+if ($azdCheck -match 'AZURE_SUBSCRIPTION_ID') {
+    # Parse azd env values
+    $subscriptionId = ($azdCheck | Select-String 'AZURE_SUBSCRIPTION_ID="([^"]+)"').Matches.Groups[1].Value
+    $resourceGroup = ($azdCheck | Select-String 'AZURE_RESOURCE_GROUP="([^"]+)"').Matches.Groups[1].Value
+    $location = ($azdCheck | Select-String 'AZURE_LOCATION="([^"]+)"').Matches.Groups[1].Value
+    
+    if ($subscriptionId -and $resourceGroup) {
+        # Get AI Services account name - filter warnings and get first line
+        $azOutput = az resource list -g $resourceGroup --query "[?type=='Microsoft.CognitiveServices/accounts'].name" -o tsv 2>&1
+        $aiAccount = ($azOutput | Where-Object { $_ -notmatch '^WARNING:' -and $_ -notmatch '^ERROR' -and $_.Trim() -ne '' } | Select-Object -First 1)
+        
+        if ($aiAccount -and $aiAccount.Trim() -ne '') {
+            # Create .env file with real values
+            $envContent = @"
+# Azure Configuration
+# Auto-populated from azd deployment: $resourceGroup
+
+# Required for all scripts
+AZURE_SUBSCRIPTION_ID=$subscriptionId
+AZURE_RESOURCE_GROUP_NAME=$resourceGroup
+AZURE_AI_PROJECT_ENDPOINT=https://$aiAccount.services.ai.azure.com/api/projects/project
+AZURE_AI_MODEL_DEPLOYMENT_NAME=gpt-4.1
+AZURE_AI_AGENT_NAME=StudentAdvisor
+AZURE_LOCATION=$location
+
+# PyRIT configuration (for demos)
+OPENAI_CHAT_ENDPOINT=https://$aiAccount.cognitiveservices.azure.com/openai/v1
+OPENAI_CHAT_MODEL=gpt-4.1
+"@
+            $envContent | Out-File -FilePath ".env" -Encoding UTF8 -Force
+            Write-Host "      Created .env with deployed Azure resources" -ForegroundColor Green
+            Write-Host "      Resource group: $resourceGroup" -ForegroundColor Gray
+            Write-Host "      AI Services: $aiAccount" -ForegroundColor Gray
+            
+            # Create pyrit_tests/.env file
+            $pyritEnvContent = @"
+# Azure OpenAI Configuration (REQUIRED for PyRIT 0.10.0)
+# Auto-populated from Azure deployment
+
+# Your Azure OpenAI endpoint
+OPENAI_CHAT_ENDPOINT=https://$aiAccount.cognitiveservices.azure.com/openai/v1
+
+# Model deployment name
+OPENAI_CHAT_MODEL=gpt-4.1
+
+# Azure region where your resources are deployed
+AZURE_LOCATION=$location
+
+# AI Foundry agent name
+AZURE_AI_AGENT_NAME=StudentAdvisor
+"@
+            $pyritEnvContent | Out-File -FilePath "pyrit_tests\.env" -Encoding UTF8 -Force
+            Write-Host "      Created pyrit_tests\.env for PyRIT demos" -ForegroundColor Green
+        } else {
+            Write-Host "      WARNING: Could not find AI Services account in $resourceGroup" -ForegroundColor Yellow
+            if (Test-Path ".env.template") {
+                Copy-Item ".env.template" ".env" -Force
+                Write-Host "      Created .env from template - please fill in values manually" -ForegroundColor Yellow
+            }
+        }
     } else {
-        Write-Host "      WARNING: No .env file found" -ForegroundColor Yellow
+        Write-Host "      WARNING: Could not parse azd environment values" -ForegroundColor Yellow
+        if (Test-Path ".env.template") {
+            Copy-Item ".env.template" ".env" -Force
+            Write-Host "      Created .env from template" -ForegroundColor Yellow
+        }
     }
 } else {
-    Write-Host "      .env file exists" -ForegroundColor Green
+    Write-Host "      No azd deployment found" -ForegroundColor Yellow
+    if (Test-Path ".env.template") {
+        Copy-Item ".env.template" ".env" -Force
+        Write-Host "      Created .env from template - run 'azd provision' first" -ForegroundColor Yellow
+    } else {
+        Write-Host "      WARNING: No .env.template found" -ForegroundColor Red
+    }
 }
 
 Write-Host ""
