@@ -209,7 +209,5 @@ output accountEndpoint string = aiAccount.properties.endpoint
 output resourceGroupName string = resourceGroup().name
 output location string = location
 output appInsightsName string = appInsights.name
-output appInsightsConnectionString string = appInsights.properties.ConnectionString
-output appInsightsInstrumentationKey string = appInsights.properties.InstrumentationKey
 output logAnalyticsWorkspaceId string = logAnalytics.id
 output gpt4oDeploymentName string = deployGpt4o ? 'gpt-4o' : ''
