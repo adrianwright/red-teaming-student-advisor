@@ -89,8 +89,9 @@ If asked about prohibited topics, politely redirect: "I'm not able to discuss th
             AzureAIProjectAgentProvider(credential=credential) as provider,
         ):
             # Create the versioned agent in Foundry using new agents API
+            agent_name = os.getenv("AZURE_AI_AGENT_NAME", "StudentAdvisor")
             agent = await provider.create_agent(
-                name="StudentAdvisor2",
+                name=agent_name,
                 instructions=self._get_advisor_instructions()
             )
             
